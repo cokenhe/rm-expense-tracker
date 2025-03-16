@@ -1,4 +1,3 @@
-import { EyeOpenIcon } from "@radix-ui/react-icons";
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
@@ -92,7 +91,6 @@ export default function ExpenseList({ expenses, groupId }: ExpenseListProps) {
         <CardTitle>Expenses</CardTitle>
         <div className="flex items-center space-x-2">
           <div className="flex items-center gap-2">
-            <EyeOpenIcon className="h-4 w-4" />
             <Switch
               id="show-involved"
               checked={showInvolvedOnly}
