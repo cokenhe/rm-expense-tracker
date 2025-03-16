@@ -4,7 +4,9 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromCache,
   getDocs,
+  getDocsFromCache,
   limit,
   query,
   setDoc,
@@ -59,8 +61,24 @@ export function useGroups() {
         setLoading(true);
         setError(null);
 
-        const groupDoc = await getDoc(doc(db, "groups", groupId));
+        const groupRef = doc(db, "groups", groupId);
 
+        // Try to get from cache first
+        try {
+          const groupDoc = await getDocFromCache(groupRef);
+          if (groupDoc.exists()) {
+            return {
+              ...groupDoc.data(),
+              id: groupDoc.id,
+            } as Group;
+          }
+        } catch (cacheErr) {
+          // Cache miss, will fetch from server
+          console.log("Cache miss for group, fetching from server:", cacheErr);
+        }
+
+        // Fallback to server
+        const groupDoc = await getDoc(groupRef);
         if (!groupDoc.exists()) {
           return null;
         }
@@ -92,6 +110,24 @@ export function useGroups() {
         limit(100)
       );
 
+      // Try cache first
+      try {
+        const cachedSnapshot = await getDocsFromCache(q);
+        if (!cachedSnapshot.empty) {
+          return cachedSnapshot.docs.map((doc) => ({
+            ...doc.data(),
+            id: doc.id,
+          })) as Group[];
+        }
+      } catch (cacheErr) {
+        // Cache miss, will fetch from server
+        console.log(
+          "Cache miss for user groups, fetching from server:",
+          cacheErr
+        );
+      }
+
+      // Fallback to server
       const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map((doc) => ({
         ...doc.data(),

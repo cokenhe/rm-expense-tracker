@@ -2,15 +2,17 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromCache,
   getDocs,
+  getDocsFromCache,
+  query,
   setDoc,
   Timestamp,
-  query,
   where,
 } from "firebase/firestore";
-import { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
 import { db } from "../lib/firebase";
-import { UserProfile, CreateUserProfileData } from "../types/user";
+import { CreateUserProfileData, UserProfile } from "../types/user";
 
 export function useUsers() {
   const [loading, setLoading] = useState(false);
@@ -49,8 +51,30 @@ export function useUsers() {
         setLoading(true);
         setError(null);
 
-        const userDoc = await getDoc(doc(db, "users", userId));
+        const userRef = doc(db, "users", userId);
 
+        // Try to get from cache first
+        try {
+          const userDoc = await getDocFromCache(userRef);
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            return {
+              ...data,
+              id: userDoc.id,
+              createdAt: data.createdAt.toDate(),
+              updatedAt: data.updatedAt.toDate(),
+            } as UserProfile;
+          }
+        } catch (cacheErr) {
+          // Cache miss, will fetch from server
+          console.log(
+            "Cache miss for user profile, fetching from server:",
+            cacheErr
+          );
+        }
+
+        // Fallback to server
+        const userDoc = await getDoc(userRef);
         if (!userDoc.exists()) {
           return null;
         }
@@ -79,7 +103,31 @@ export function useUsers() {
       setLoading(true);
       setError(null);
 
-      const querySnapshot = await getDocs(collection(db, "users"));
+      const usersQuery = query(collection(db, "users"));
+
+      // Try cache first
+      try {
+        const cachedSnapshot = await getDocsFromCache(usersQuery);
+        if (!cachedSnapshot.empty) {
+          return cachedSnapshot.docs.map((doc) => {
+            const data = doc.data();
+            return {
+              ...data,
+              id: doc.id,
+              createdAt: data.createdAt.toDate(),
+              updatedAt: data.updatedAt.toDate(),
+            } as UserProfile;
+          });
+        }
+      } catch (cacheErr) {
+        console.log(
+          "Cache miss for all users, fetching from server:",
+          cacheErr
+        );
+      }
+
+      // Fallback to server
+      const querySnapshot = await getDocs(usersQuery);
       return querySnapshot.docs.map((doc) => {
         const data = doc.data();
         return {
@@ -109,6 +157,28 @@ export function useUsers() {
           where("email", "<=", email + "\uf8ff")
         );
 
+        // Try cache first
+        try {
+          const cachedSnapshot = await getDocsFromCache(q);
+          if (!cachedSnapshot.empty) {
+            return cachedSnapshot.docs.map((doc) => {
+              const data = doc.data();
+              return {
+                ...data,
+                id: doc.id,
+                createdAt: data.createdAt.toDate(),
+                updatedAt: data.updatedAt.toDate(),
+              } as UserProfile;
+            });
+          }
+        } catch (cacheErr) {
+          console.log(
+            "Cache miss for user search, fetching from server:",
+            cacheErr
+          );
+        }
+
+        // Fallback to server
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map((doc) => {
           const data = doc.data();
