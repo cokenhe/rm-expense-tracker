@@ -23,7 +23,8 @@ export const auth = getAuth(app);
 
 // Enable offline persistence before initializing Firestore
 export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache(),
-  cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+  localCache: persistentLocalCache({
+    cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+  }),
 });
 export const analytics = getAnalytics(app);
