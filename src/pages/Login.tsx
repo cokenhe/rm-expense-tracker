@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -10,7 +10,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const { signIn } = useAuth();
+  const { signIn, user } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -30,7 +30,6 @@ export default function Login() {
     try {
       setIsLoading(true);
       await signIn(email, password);
-      navigate("/dashboard");
     } catch (error) {
       console.error("Login error:", error);
       const mappedError = mapFirebaseError(error);
@@ -39,6 +38,12 @@ export default function Login() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (user) {
+      navigate("/dashboard");
+    }
+  }, [user, navigate]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
