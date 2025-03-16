@@ -93,12 +93,34 @@ export function useExpenses() {
         }
 
         const snapshot = await getDocs(expensesQuery);
-        let expenses = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt.toDate(),
-          updatedAt: doc.data().updatedAt.toDate(),
-        })) as Expense[];
+        // Get all expenses first
+        const expenseDocs = snapshot.docs;
+
+        // Fetch payer info for all expenses
+        const payerProfiles = await Promise.all(
+          [...new Set(expenseDocs.map((doc) => doc.data().payerId))].map(
+            (payerId) => getUserProfile(payerId)
+          )
+        );
+
+        // Create a map of payer profiles for quick lookup
+        const payerMap = new Map(
+          payerProfiles.map((profile) => [profile?.id, profile])
+        );
+
+        let expenses = expenseDocs.map((doc) => {
+          const data = doc.data();
+          const payerProfile = payerMap.get(data.payerId);
+          return {
+            id: doc.id,
+            ...data,
+            createdAt: data.createdAt.toDate(),
+            updatedAt: data.updatedAt.toDate(),
+            payerName: payerProfile
+              ? payerProfile.displayName || payerProfile.email
+              : "Unknown User",
+          };
+        }) as Expense[];
 
         // If groupId is provided, filter for that group
         if (groupId) {

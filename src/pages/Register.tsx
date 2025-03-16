@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { useAuth } from "../contexts/AuthContext";
+import { mapFirebaseError } from "../lib/errorMapping";
 
 export default function Register() {
   const [name, setName] = useState("");
@@ -18,6 +19,26 @@ export default function Register() {
     e.preventDefault();
     setError("");
 
+    if (!name.trim()) {
+      setError("Please enter your name");
+      return;
+    }
+
+    if (!email.trim()) {
+      setError("Please enter your email");
+      return;
+    }
+
+    if (!password) {
+      setError("Please enter a password");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters long");
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError("Passwords do not match");
       return;
@@ -29,7 +50,8 @@ export default function Register() {
       navigate("/dashboard");
     } catch (error) {
       console.error("Registration error:", error);
-      setError(error instanceof Error ? error.message : "Failed to register");
+      const mappedError = mapFirebaseError(error);
+      setError(mappedError.message);
     } finally {
       setIsLoading(false);
     }

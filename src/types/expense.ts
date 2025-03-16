@@ -17,6 +17,7 @@ export interface Expense {
   createdAt: Date;
   updatedAt: Date;
   groupId?: string; // Optional group context
+  payerName?: string; // Name of the payer
 }
 
 export type SplitType = "equal" | "custom";

@@ -4,6 +4,7 @@ import { useToast } from "../../contexts/ToastContext";
 import { useExpenses } from "../../hooks/useExpenses";
 import { useGroups } from "../../hooks/useGroups";
 import { useUsers } from "../../hooks/useUsers";
+import { mapFirebaseError } from "../../lib/errorMapping";
 import { ExpenseFormData, Split, SplitType } from "../../types/expense";
 import { Group } from "../../types/group";
 import { UserProfile } from "../../types/user";
@@ -20,11 +21,16 @@ import {
 } from "../ui/select";
 
 interface ExpenseFormProps {
+  groupId?: string;
   onSuccess?: () => void;
   onCancel?: () => void;
 }
 
-export default function ExpenseForm({ onSuccess, onCancel }: ExpenseFormProps) {
+export default function ExpenseForm({
+  groupId,
+  onSuccess,
+  onCancel,
+}: ExpenseFormProps) {
   const { user } = useAuth();
   const { createExpense, loading } = useExpenses();
   const { getAllUsers } = useUsers();
@@ -37,7 +43,9 @@ export default function ExpenseForm({ onSuccess, onCancel }: ExpenseFormProps) {
   const [participants, setParticipants] = useState<string[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("none");
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(
+    groupId || "none"
+  );
   const [payer, setPayer] = useState<string>("");
   const [participatingMembers, setParticipatingMembers] = useState<string[]>(
     []
@@ -94,20 +102,31 @@ export default function ExpenseForm({ onSuccess, onCancel }: ExpenseFormProps) {
     }
   }, [selectedGroupId, groups]);
 
-  const validateCustomSplits = (): boolean => {
-    if (splitType !== "custom") return true;
-
-    const totalShares = Object.values(customShares).reduce((a, b) => a + b, 0);
-    if (totalShares === 0) {
-      toast({
-        title: "Invalid Shares",
-        description: "Total shares must be greater than 0",
-        variant: "destructive",
-      });
-      return false;
+  const validateForm = (): string | undefined => {
+    if (!description.trim()) {
+      return "Please enter a description";
     }
 
-    return true;
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      return "Please enter a valid amount";
+    }
+
+    if (participatingMembers.length === 0) {
+      return "Please select at least one participant";
+    }
+
+    if (splitType === "custom") {
+      const totalShares = Object.values(customShares).reduce(
+        (a, b) => a + b,
+        0
+      );
+      if (totalShares === 0) {
+        return "Total shares must be greater than 0";
+      }
+    }
+
+    return undefined;
   };
 
   const calculateSplits = (): Split[] => {
@@ -140,39 +159,17 @@ export default function ExpenseForm({ onSuccess, onCancel }: ExpenseFormProps) {
     if (!user) return;
 
     try {
+      const validationError = validateForm();
+      if (validationError) {
+        toast({
+          title: "Validation Error",
+          description: validationError,
+          variant: "destructive",
+        });
+        return;
+      }
+
       const numAmount = parseFloat(amount);
-
-      if (isNaN(numAmount) || numAmount <= 0) {
-        toast({
-          title: "Invalid Amount",
-          description: "Please enter a valid amount",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (!description.trim()) {
-        toast({
-          title: "Missing Description",
-          description: "Please enter a description",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (participatingMembers.length === 0) {
-        toast({
-          title: "No Participants",
-          description: "Please select at least one participant",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (!validateCustomSplits()) {
-        return;
-      }
-
       const splits = calculateSplits();
 
       const expenseData: ExpenseFormData = {
@@ -204,12 +201,13 @@ export default function ExpenseForm({ onSuccess, onCancel }: ExpenseFormProps) {
         setPayer(user.uid);
       }
     } catch (err) {
+      console.error("Failed to create expense:", err);
+      const mappedError = mapFirebaseError(err);
       toast({
         title: "Error",
-        description: "Failed to create expense",
+        description: mappedError.message,
         variant: "destructive",
       });
-      console.error(err);
     }
   };
 
@@ -241,6 +239,30 @@ export default function ExpenseForm({ onSuccess, onCancel }: ExpenseFormProps) {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
+            {!groupId && (
+              <>
+                <label className="text-sm font-medium">Group</label>
+                <Select
+                  value={selectedGroupId}
+                  onValueChange={setSelectedGroupId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a group" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No group</SelectItem>
+                    {groups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
+          </div>
+
+          <div className="space-y-2">
             <Input
               type="text"
               placeholder="Description"
@@ -268,76 +290,43 @@ export default function ExpenseForm({ onSuccess, onCancel }: ExpenseFormProps) {
                 <SelectValue placeholder="Select payer" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={user?.uid || ""}>
-                  {user?.displayName + " - " + user?.email} (You)
-                </SelectItem>
-                {users.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {u?.displayName + " - " + u.email}
-                  </SelectItem>
-                ))}
+                {selectedGroupId === "none" ? (
+                  <>
+                    <SelectItem value={user?.uid || ""}>
+                      {user?.displayName + " - " + user?.email} (You)
+                    </SelectItem>
+                    {users.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u?.displayName + " - " + u.email}
+                      </SelectItem>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    {user &&
+                      groups
+                        .find((g) => g.id === selectedGroupId)
+                        ?.members.includes(user.uid) && (
+                        <SelectItem value={user.uid}>
+                          {user.displayName + " - " + user.email} (You)
+                        </SelectItem>
+                      )}
+                    {users
+                      .filter((u) =>
+                        groups
+                          .find((g) => g.id === selectedGroupId)
+                          ?.members.includes(u.id)
+                      )
+                      .map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u?.displayName + " - " + u.email}
+                        </SelectItem>
+                      ))}
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Group (Optional)</label>
-            <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a group" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No group</SelectItem>
-                {groups.map((group) => (
-                  <SelectItem key={group.id} value={group.id}>
-                    {group.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {selectedGroupId === "none" && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Participants</label>
-              <div className="space-y-2">
-                {users.map((u) => (
-                  <div key={u.id} className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id={u.id}
-                      checked={participants.includes(u.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setParticipants([...participants, u.id]);
-                          setParticipatingMembers([
-                            ...participatingMembers,
-                            u.id,
-                          ]);
-                        } else {
-                          setParticipants(
-                            participants.filter((id) => id !== u.id)
-                          );
-                          setParticipatingMembers(
-                            participatingMembers.filter((id) => id !== u.id)
-                          );
-                          if (splitType === "custom") {
-                            const newShares = { ...customShares };
-                            delete newShares[u.id];
-                            setCustomShares(newShares);
-                          }
-                        }
-                      }}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <label htmlFor={u.id} className="text-sm">
-                      {u.email}
-                    </label>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           <div className="space-y-2">
             <div className="text-sm font-medium mb-2">Split Type</div>

@@ -1,24 +1,40 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { useAuth } from "../contexts/AuthContext";
+import { mapFirebaseError } from "../lib/errorMapping";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const { signIn } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+
+    if (!email.trim()) {
+      setError("Please enter your email");
+      return;
+    }
+
+    if (!password) {
+      setError("Please enter your password");
+      return;
+    }
+
     try {
       setIsLoading(true);
       await signIn(email, password);
       navigate("/dashboard");
     } catch (error) {
       console.error("Login error:", error);
+      const mappedError = mapFirebaseError(error);
+      setError(mappedError.message);
     } finally {
       setIsLoading(false);
     }
@@ -36,6 +52,9 @@ export default function Login() {
           </p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="text-sm text-destructive text-center">{error}</div>
+          )}
           <div className="space-y-2">
             <Input
               type="email"

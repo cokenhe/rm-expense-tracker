@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { CreateGroupData } from "../../types/group";
+import { useToast } from "../../contexts/ToastContext";
 import { useGroups } from "../../hooks/useGroups";
+import { mapFirebaseError } from "../../lib/errorMapping";
+import { CreateGroupData } from "../../types/group";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 
@@ -9,13 +11,29 @@ interface GroupFormProps {
   onCancel: () => void;
 }
 
+const MAX_GROUP_NAME_LENGTH = 50;
+
 export function GroupForm({ onSubmit, onCancel }: GroupFormProps) {
   const [name, setName] = useState("");
-  const { createGroup, loading, error } = useGroups();
+  const [localError, setLocalError] = useState("");
+  const { createGroup, loading } = useGroups();
+  const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    setLocalError("");
+
+    if (!name.trim()) {
+      setLocalError("Please enter a group name");
+      return;
+    }
+
+    if (name.trim().length > MAX_GROUP_NAME_LENGTH) {
+      setLocalError(
+        `Group name cannot exceed ${MAX_GROUP_NAME_LENGTH} characters`
+      );
+      return;
+    }
 
     const data: CreateGroupData = {
       name: name.trim(),
@@ -23,10 +41,15 @@ export function GroupForm({ onSubmit, onCancel }: GroupFormProps) {
 
     try {
       await createGroup(data);
+      toast({
+        title: "Success",
+        description: "Group created successfully",
+      });
       onSubmit();
     } catch (err) {
-      // Error state is handled by useGroups
       console.error("Failed to create group:", err);
+      const mappedError = mapFirebaseError(err);
+      setLocalError(mappedError.message);
     }
   };
 
@@ -44,15 +67,16 @@ export function GroupForm({ onSubmit, onCancel }: GroupFormProps) {
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Enter group name"
+          placeholder="Enter group name (max 50 characters)"
           required
+          maxLength={MAX_GROUP_NAME_LENGTH}
           className="mt-1"
         />
       </div>
 
-      {error && (
-        <p className="text-sm text-red-600" role="alert">
-          {error.message}
+      {localError && (
+        <p className="text-sm text-destructive" role="alert">
+          {localError}
         </p>
       )}
 

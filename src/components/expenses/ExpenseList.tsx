@@ -34,7 +34,6 @@ export default function ExpenseList({ expenses }: ExpenseListProps) {
           }
         })
       );
-      console.log("User names:", names);
       setUserNames(names);
     };
 
@@ -42,7 +41,6 @@ export default function ExpenseList({ expenses }: ExpenseListProps) {
   }, [expenses, getUserProfile]);
 
   const filteredAndGroupedExpenses = useMemo(() => {
-    // Filter expenses if showInvolvedOnly is true
     const filtered = showInvolvedOnly
       ? expenses.filter(
           (expense) =>
@@ -70,6 +68,20 @@ export default function ExpenseList({ expenses }: ExpenseListProps) {
     return Array.from(groups.entries());
   }, [expenses, showInvolvedOnly, user?.uid]);
 
+  const getExpenseAmount = (expense: Expense) => {
+    if (expense.payerId === user?.uid) {
+      // Amount user will receive from others
+      return expense.splits
+        .filter((split) => split.userId !== user.uid)
+        .reduce((sum, split) => sum + split.amount, 0);
+    } else {
+      // Amount user owes
+      return (
+        expense.splits.find((split) => split.userId === user?.uid)?.amount || 0
+      );
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -90,79 +102,84 @@ export default function ExpenseList({ expenses }: ExpenseListProps) {
               <h3 className="text-sm font-medium text-muted-foreground px-4">
                 {month}
               </h3>
-              {monthExpenses.map((expense) => (
-                <div
-                  key={expense.id}
-                  className="flex items-center justify-between p-4 rounded-lg border bg-card text-card-foreground shadow-sm"
-                >
-                  <div className="space-y-1">
-                    <p className="font-medium">{expense.description}</p>
-                    <div className="flex gap-2 text-sm text-muted-foreground">
-                      <span>
-                        {expense.createdAt.toLocaleDateString()} at{" "}
-                        {expense.createdAt.toLocaleTimeString()}
-                      </span>
-                      <span>•</span>
-                      <span>${expense.amount.toFixed(2)}</span>
-                      {(expense.payerId === user?.uid ||
-                        expense.splits.some(
-                          (split) => split.userId === user?.uid
-                        )) && (
-                        <>
-                          <span>•</span>
-                          {expense.payerId === user?.uid ? (
-                            <span className="text-green-600">
-                              You lent $
-                              {expense.splits
-                                .filter((split) => split.userId !== user.uid)
-                                .reduce((sum, split) => sum + split.amount, 0)
-                                .toFixed(2)}
-                            </span>
-                          ) : (
-                            <span className="text-red-600">
-                              You borrowed $
-                              {expense.splits
-                                .find((split) => split.userId === user?.uid)
-                                ?.amount.toFixed(2) || 0}
+              {monthExpenses.map((expense) => {
+                const isUserInvolved =
+                  expense.payerId === user?.uid ||
+                  expense.splits.some((split) => split.userId === user?.uid);
+                const amount = getExpenseAmount(expense);
+                const isUserPayer = expense.payerId === user?.uid;
+
+                return (
+                  <div
+                    key={expense.id}
+                    className={`flex flex-col p-4 rounded-lg border ${
+                      isUserInvolved
+                        ? "bg-blue-50/50 border-blue-100"
+                        : "bg-card"
+                    } text-card-foreground shadow-sm`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{expense.description}</p>
+                          {isUserInvolved && (
+                            <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">
+                              Involved
                             </span>
                           )}
-                        </>
-                      )}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {expense.createdAt.toLocaleString("default", {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          })}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium">
+                          Total: ${expense.amount.toFixed(2)}
+                        </p>
+                        {isUserInvolved && (
+                          <p
+                            className={`text-sm ${
+                              isUserPayer ? "text-green-600" : "text-red-600"
+                            }`}
+                          >
+                            {isUserPayer ? "You lent" : "You borrowed"}: $
+                            {amount.toFixed(2)}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-sm">
+                    <div className="mt-2 text-sm">
                       <span className="font-medium">Paid by:</span>{" "}
-                      {user?.uid === expense.payerId ? (
-                        <span className="text-blue-600">You</span>
+                      {isUserPayer ? (
+                        <span className="text-green-600">You</span>
                       ) : (
-                        userNames[expense.payerId] || "Loading..."
+                        userNames[expense.payerId] || "Unknown"
                       )}
                     </div>
-                    <div className="text-sm">
+                    <div className="mt-1 text-sm">
                       <span className="font-medium">Split with: </span>
                       {expense.splits.map((split, index) => (
                         <React.Fragment key={split.userId}>
                           {index > 0 && ", "}
                           {split.userId === user?.uid ? (
-                            <span className="text-blue-600">You</span>
+                            <span className="text-blue-600">
+                              You (${split.amount.toFixed(2)})
+                            </span>
                           ) : (
-                            userNames[split.userId] || "Loading..."
+                            <span>
+                              {userNames[split.userId] || "Unknown"} ($
+                              {split.amount.toFixed(2)})
+                            </span>
                           )}
                         </React.Fragment>
                       ))}
                     </div>
                   </div>
-                  {(expense.payerId === user?.uid ||
-                    expense.splits.some(
-                      (split) => split.userId === user?.uid
-                    )) && (
-                    <div className="ml-4">
-                      <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
-                        Involved
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           ))}
           {filteredAndGroupedExpenses.length === 0 && (

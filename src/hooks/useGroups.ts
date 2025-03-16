@@ -53,7 +53,7 @@ export function useGroups() {
     [user]
   );
 
-  const getGroup = useCallback(
+  const getGroupById = useCallback(
     async (groupId: string): Promise<Group | null> => {
       try {
         setLoading(true);
@@ -127,7 +127,7 @@ export function useGroups() {
         const inviteeId = usersQuery.docs[0].id;
 
         // Check if user is already a member
-        const group = await getGroup(groupId);
+        const group = await getGroupById(groupId);
         if (group?.members.includes(inviteeId)) {
           throw new Error("User is already a member of this group");
         }
@@ -168,7 +168,7 @@ export function useGroups() {
         setLoading(false);
       }
     },
-    [user, getGroup]
+    [user, getGroupById]
   );
 
   const getGroupInvitations = useCallback(async (): Promise<
@@ -256,7 +256,7 @@ export function useGroups() {
         setLoading(true);
         setError(null);
 
-        const group = await getGroup(groupId);
+        const group = await getGroupById(groupId);
 
         if (!group) {
           throw new Error("Group not found");
@@ -285,14 +285,14 @@ export function useGroups() {
         setLoading(false);
       }
     },
-    [user, getGroup]
+    [user, getGroupById]
   );
 
   return {
     loading,
     error,
     createGroup,
-    getGroup,
+    getGroupById,
     getUserGroups,
     inviteMember,
     getGroupInvitations,

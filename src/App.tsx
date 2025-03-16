@@ -1,15 +1,17 @@
 import {
+  Navigate,
+  Route,
   BrowserRouter as Router,
   Routes,
-  Route,
-  Navigate,
 } from "react-router-dom";
+import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ToastContextProvider } from "./contexts/ToastContext";
-import ProtectedRoute from "./components/ProtectedRoute";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import GroupDetails from "./pages/GroupDetails";
+import Login from "./pages/Login";
+import NewGroupExpense from "./pages/NewGroupExpense";
+import Register from "./pages/Register";
 
 function App() {
   return (
@@ -24,6 +26,22 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/groups/:groupId"
+              element={
+                <ProtectedRoute>
+                  <GroupDetails />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/groups/:groupId/expense/new"
+              element={
+                <ProtectedRoute>
+                  <NewGroupExpense />
                 </ProtectedRoute>
               }
             />
