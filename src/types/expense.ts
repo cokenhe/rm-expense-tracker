@@ -13,7 +13,9 @@ export interface Expense {
   payerId: string;
   amount: number;
   description: string;
+  splitType: SplitType;
   splits: Split[];
+  participants: string[]; // Array of user IDs
   createdAt: Date;
   updatedAt: Date;
   groupId?: string; // Optional group context

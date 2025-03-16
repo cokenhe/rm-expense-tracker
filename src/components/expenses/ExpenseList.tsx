@@ -1,3 +1,4 @@
+import { EyeOpenIcon } from "@radix-ui/react-icons";
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
@@ -6,15 +7,18 @@ import { Expense } from "../../types/expense";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
+import ExpenseForm from "./ExpenseForm";
 
 interface ExpenseListProps {
   expenses: Expense[];
+  groupId?: string;
 }
 
-export default function ExpenseList({ expenses }: ExpenseListProps) {
+export default function ExpenseList({ expenses, groupId }: ExpenseListProps) {
   const { user } = useAuth();
   const { getUserProfile } = useUsers();
   const [showInvolvedOnly, setShowInvolvedOnly] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [userNames, setUserNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -87,12 +91,16 @@ export default function ExpenseList({ expenses }: ExpenseListProps) {
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Expenses</CardTitle>
         <div className="flex items-center space-x-2">
-          <Switch
-            id="show-involved"
-            checked={showInvolvedOnly}
-            onCheckedChange={setShowInvolvedOnly}
-          />
-          <Label htmlFor="show-involved">Show involved only</Label>
+          <div className="flex items-center gap-2">
+            <EyeOpenIcon className="h-4 w-4" />
+            <Switch
+              id="show-involved"
+              checked={showInvolvedOnly}
+              onCheckedChange={setShowInvolvedOnly}
+              aria-label="Toggle show involved expenses only"
+            />
+            <Label htmlFor="show-involved">Show involved only</Label>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -112,11 +120,20 @@ export default function ExpenseList({ expenses }: ExpenseListProps) {
                 return (
                   <div
                     key={expense.id}
+                    onClick={() => setEditingExpense(expense)}
                     className={`flex flex-col p-4 rounded-lg border ${
                       isUserInvolved
                         ? "bg-blue-50/50 border-blue-100"
                         : "bg-card"
-                    } text-card-foreground shadow-sm`}
+                    } text-card-foreground shadow-sm cursor-pointer transition-colors hover:bg-blue-50/80`}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        setEditingExpense(expense);
+                      }
+                    }}
+                    aria-label={`Edit expense: ${expense.description}`}
                   >
                     <div className="flex justify-between items-start">
                       <div className="space-y-1">
@@ -189,6 +206,26 @@ export default function ExpenseList({ expenses }: ExpenseListProps) {
           )}
         </div>
       </CardContent>
+      {editingExpense && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => setEditingExpense(null)}
+        >
+          <div
+            className="bg-background rounded-lg w-full max-w-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ExpenseForm
+              groupId={groupId}
+              expenseToEdit={editingExpense}
+              onSuccess={() => {
+                setEditingExpense(null);
+              }}
+              onCancel={() => setEditingExpense(null)}
+            />
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

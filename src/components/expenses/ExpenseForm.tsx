@@ -1,3 +1,8 @@
+import {
+  CheckCircledIcon,
+  Cross2Icon,
+  PlusCircledIcon,
+} from "@radix-ui/react-icons";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useToast } from "../../contexts/ToastContext";
@@ -5,7 +10,12 @@ import { useExpenses } from "../../hooks/useExpenses";
 import { useGroups } from "../../hooks/useGroups";
 import { useUsers } from "../../hooks/useUsers";
 import { mapFirebaseError } from "../../lib/errorMapping";
-import { ExpenseFormData, Split, SplitType } from "../../types/expense";
+import {
+  Expense,
+  ExpenseFormData,
+  Split,
+  SplitType,
+} from "../../types/expense";
 import { Group } from "../../types/group";
 import { UserProfile } from "../../types/user";
 import { Button } from "../ui/button";
@@ -22,36 +32,45 @@ import {
 
 interface ExpenseFormProps {
   groupId?: string;
+  expenseToEdit?: Expense;
   onSuccess?: () => void;
   onCancel?: () => void;
 }
 
 export default function ExpenseForm({
   groupId,
+  expenseToEdit,
   onSuccess,
   onCancel,
 }: ExpenseFormProps) {
   const { user } = useAuth();
-  const { createExpense, loading } = useExpenses();
+  const { createExpense, updateExpense, loading } = useExpenses();
   const { getAllUsers } = useUsers();
   const { getUserGroups } = useGroups();
   const { toast } = useToast();
 
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [splitType, setSplitType] = useState<SplitType>("equal");
+  const [description, setDescription] = useState(
+    expenseToEdit?.description || ""
+  );
+  const [amount, setAmount] = useState(expenseToEdit?.amount.toString() || "");
+  const [splitType, setSplitType] = useState<SplitType>(
+    expenseToEdit?.splitType || "equal"
+  );
   const [participants, setParticipants] = useState<string[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>(
-    groupId || "none"
+    groupId || expenseToEdit?.groupId || "none"
   );
-  const [payer, setPayer] = useState<string>("");
+  const [payer, setPayer] = useState<string>(expenseToEdit?.payerId || "");
   const [participatingMembers, setParticipatingMembers] = useState<string[]>(
-    []
+    expenseToEdit?.participants || []
   );
   const [customShares, setCustomShares] = useState<{ [key: string]: number }>(
-    {}
+    expenseToEdit?.splits.reduce(
+      (acc, split) => ({ ...acc, [split.userId]: split.amount }),
+      {}
+    ) || {}
   );
   const [loadingUsers, setLoadingUsers] = useState(true);
 
@@ -80,12 +99,12 @@ export default function ExpenseForm({
     loadData();
   }, [getAllUsers, getUserGroups, user?.uid, toast]);
 
-  // Set initial payer to current user
+  // Set initial payer to current user (only if not editing)
   useEffect(() => {
-    if (user?.uid) {
+    if (!expenseToEdit && user?.uid) {
       setPayer(user.uid);
     }
-  }, [user?.uid]);
+  }, [user?.uid, expenseToEdit]);
 
   // Update participants when group selection changes
   useEffect(() => {
@@ -93,14 +112,18 @@ export default function ExpenseForm({
       const group = groups.find((g) => g.id === selectedGroupId);
       if (group) {
         setParticipants(group.members);
-        setParticipatingMembers(group.members);
-        setCustomShares({});
+        if (!expenseToEdit) {
+          setParticipatingMembers(group.members);
+          setCustomShares({});
+        }
       }
     } else {
       setParticipants([]);
-      setParticipatingMembers([]);
+      if (!expenseToEdit) {
+        setParticipatingMembers([]);
+      }
     }
-  }, [selectedGroupId, groups]);
+  }, [selectedGroupId, groups, expenseToEdit]);
 
   const validateForm = (): string | undefined => {
     if (!description.trim()) {
@@ -182,26 +205,38 @@ export default function ExpenseForm({
         payerId: payer,
       };
 
-      await createExpense(expenseData);
+      if (expenseToEdit) {
+        await updateExpense(expenseToEdit.id, expenseData);
+      } else {
+        await createExpense(expenseData);
+      }
+
       toast({
         title: "Success",
-        description: "Expense created successfully",
+        description: `Expense ${
+          expenseToEdit ? "updated" : "created"
+        } successfully`,
       });
       onSuccess?.();
 
-      // Reset form
-      setDescription("");
-      setAmount("");
-      setSplitType("equal");
-      setParticipants([]);
-      setParticipatingMembers([]);
-      setCustomShares({});
-      setSelectedGroupId("none");
-      if (user?.uid) {
-        setPayer(user.uid);
+      // Reset form if not editing
+      if (!expenseToEdit) {
+        setDescription("");
+        setAmount("");
+        setSplitType("equal");
+        setParticipants([]);
+        setParticipatingMembers([]);
+        setCustomShares({});
+        setSelectedGroupId("none");
+        if (user?.uid) {
+          setPayer(user.uid);
+        }
       }
     } catch (err) {
-      console.error("Failed to create expense:", err);
+      console.error(
+        `Failed to ${expenseToEdit ? "update" : "create"} expense:`,
+        err
+      );
       const mappedError = mapFirebaseError(err);
       toast({
         title: "Error",
@@ -234,7 +269,9 @@ export default function ExpenseForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create New Expense</CardTitle>
+        <CardTitle>
+          {expenseToEdit ? "Edit Expense" : "Create New Expense"}
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -424,12 +461,28 @@ export default function ExpenseForm({
 
           <div className="flex justify-end space-x-2">
             {onCancel && (
-              <Button type="button" variant="outline" onClick={onCancel}>
-                Cancel
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancel}
+                className="gap-2"
+              >
+                <Cross2Icon className="h-4 w-4" />
+                <span>Cancel</span>
               </Button>
             )}
-            <Button type="submit" disabled={loading}>
-              {loading ? "Creating..." : "Create Expense"}
+            <Button type="submit" disabled={loading} className="gap-2">
+              {expenseToEdit ? (
+                <>
+                  <CheckCircledIcon className="h-4 w-4" />
+                  <span>{loading ? "Updating..." : "Update Expense"}</span>
+                </>
+              ) : (
+                <>
+                  <PlusCircledIcon className="h-4 w-4" />
+                  <span>{loading ? "Creating..." : "Create Expense"}</span>
+                </>
+              )}
             </Button>
           </div>
         </form>

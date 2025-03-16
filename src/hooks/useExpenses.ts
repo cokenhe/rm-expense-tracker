@@ -7,6 +7,7 @@ import {
   orderBy,
   query,
   Timestamp,
+  updateDoc,
   where,
 } from "firebase/firestore";
 import { useCallback, useState } from "react";
@@ -264,5 +265,46 @@ export function useExpenses() {
     getExpenses,
     calculateBalances,
     calculateSplitAmounts,
+    updateExpense: async (id: string, data: ExpenseFormData): Promise<void> => {
+      if (!user) throw new Error("User must be authenticated");
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Verify group membership if updating a group expense
+        if (data.groupId) {
+          const groupDoc = await getDoc(doc(db, "groups", data.groupId));
+          if (!groupDoc.exists()) {
+            throw new Error("Group not found");
+          }
+          const groupData = groupDoc.data();
+          if (!groupData.members.includes(user.uid)) {
+            throw new Error("You are not a member of this group");
+          }
+        }
+
+        const now = Timestamp.now();
+        const expenseData = {
+          payerId: data.payerId,
+          amount: data.amount,
+          description: data.description,
+          splits: data.splits,
+          participants: data.participants,
+          splitType: data.splitType,
+          groupId: data.groupId,
+          updatedAt: now,
+        };
+
+        await updateDoc(doc(db, "expenses", id), expenseData);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err : new Error("Failed to update expense")
+        );
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
   };
 }
