@@ -4,8 +4,7 @@ import vercel from "vite-plugin-vercel";
 
 // https://vite.dev/config/
 export default defineConfig({
-  server: {
-    port: process.env.PORT as unknown as number,
-  },
+  base: "/",
+  build: { outDir: "dist" },
   plugins: [react(), vercel()],
 });
