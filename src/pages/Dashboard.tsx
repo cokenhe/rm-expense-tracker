@@ -24,9 +24,10 @@ export default function Dashboard() {
     try {
       setLoading(true);
       const userGroups = await getUserGroups();
+      console.log(userGroups);
 
       // Get expenses for each group
-      const groupsWithSummary = await Promise.all(
+      const groupsWithSummary = await Promise.allSettled(
         userGroups.map(async (group) => {
           const groupExpenses = await getExpenses(group.id);
           const totalAmount = groupExpenses.reduce(
@@ -49,7 +50,11 @@ export default function Dashboard() {
         })
       );
 
-      setGroups(groupsWithSummary);
+      setGroups(
+        groupsWithSummary
+          .filter((res) => res.status === "fulfilled")
+          .map((res) => res.value)
+      );
     } catch (err) {
       console.error("Failed to load groups:", err);
     } finally {
