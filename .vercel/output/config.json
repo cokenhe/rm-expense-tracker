@@ -2,19 +2,16 @@
   "version": 3,
   "routes": [
     {
-      "src": "^/(?:(.+)/)?index(?:\\.html)?/?$",
-      "headers": {
-        "Location": "/$1"
-      },
-      "status": 308
+      "handle": "error"
     },
     {
-      "src": "^/(.*)\\.html/?$",
-      "headers": {
-        "Location": "/$1"
-      },
-      "status": 308
+      "status": 404,
+      "src": "^(?!/api).*$",
+      "dest": "/404.html"
     }
   ],
-  "overrides": {}
+  "framework": {
+    "version": "6.2.2"
+  },
+  "crons": []
 }

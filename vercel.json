@@ -1,3 +1,3 @@
 {
-  "buildCommand": "cat src/App.tsx && npm install && npm run build"
+  "buildCommand": "npm install && npm run build"
 }
